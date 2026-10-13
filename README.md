@@ -30,7 +30,10 @@ Garmin ──► sync ──► SQLite (daily steps, planned legs, places)
 2. `uv sync`
 3. `copy .env.example .env` and set `ORS_API_KEY` (free:
    https://openrouteservice.org/dev/#/signup). Optional: `MAPILLARY_TOKEN`, `WIKI_LANG`.
-4. `uv run orienter garmin-login` (password is used once, only tokens are stored in `data/`)
+4. Steps: `uv run orienter garmin-login` (password used once, only tokens stored in `data/`).
+   If Garmin blocks the login (HTTP 429), import CSV exports instead: Garmin Connect ›
+   Reports › Steps › 4 Weeks › Export, then drop the file on the page or run
+   `uv run orienter import steps.csv`.
 5. `uv run orienter serve`, then choose your home and start date in the browser.
 
 ### Daily update

@@ -121,6 +121,17 @@ class Game:
             db.set_setting(self.conn, "last_sync", db.now_iso())
         return len(counts)
 
+    def import_steps(self, counts: dict[date, int], source: str) -> int:
+        """Store step counts from a file import. Returns the number of days stored."""
+        with self.conn:
+            for day, steps in counts.items():
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO daily_steps (day, steps, source, fetched_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (day.isoformat(), steps, source, db.now_iso()),
+                )
+        return len(counts)
+
     def total_steps(self) -> int:
         row = self.conn.execute(
             "SELECT COALESCE(SUM(steps), 0) AS s FROM daily_steps WHERE day >= ?",

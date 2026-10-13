@@ -11,6 +11,7 @@ from orienter.net import client
 from orienter.photos import PhotoFinder
 from orienter.places import PlaceFinder
 from orienter.routing import OrsRouter
+from orienter.sources.csv_import import parse_steps_csv
 from orienter.sources.garmin import GarminStepSource
 
 log = logging.getLogger(__name__)
@@ -40,9 +41,23 @@ class App:
         out = []
         if not self.cfg.ors_api_key:
             out.append("ORS_API_KEY is missing in .env: the route can't be planned.")
-        if not self.source.is_logged_in:
-            out.append("Not logged in to Garmin: run `uv run orienter garmin-login`.")
+        has_steps = self.conn.execute("SELECT 1 FROM daily_steps LIMIT 1").fetchone()
+        if not self.source.is_logged_in and not has_steps:
+            out.append(
+                "No steps yet: import a Garmin Connect CSV (Settings, below) "
+                "or run `uv run orienter garmin-login`."
+            )
         return out
+
+    def import_csv(self, text: str) -> dict:
+        """Import a Garmin Connect steps CSV, then extend the route in the background."""
+        counts = parse_steps_csv(text)
+        with self.lock:
+            self.game.import_steps(counts, source="garmin-csv")
+        if self.game.configured:
+            self.sync_in_background()
+        days = sorted(counts)
+        return {"days": len(days), "first": days[0].isoformat(), "last": days[-1].isoformat()}
 
     def sync(self, force: bool = False) -> SyncStatus:
         """Fetch steps then extend the route. Runs in the caller's thread."""

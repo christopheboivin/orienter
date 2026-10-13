@@ -4,6 +4,7 @@ import logging
 import sys
 import threading
 import webbrowser
+from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -19,6 +20,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sync = sub.add_parser("sync", help="fetch steps and extend the route (for Task Scheduler)")
     sync.add_argument("--force", action="store_true", help="ignore the 1-hour resync delay")
+
+    imp = sub.add_parser("import", help="import Garmin Connect steps CSV export(s)")
+    imp.add_argument("files", nargs="+", type=Path)
 
     args = parser.parse_args(argv)
     logging.basicConfig(
@@ -54,6 +58,22 @@ def main(argv: list[str] | None = None) -> int:
     from orienter.app import App
 
     core = App(cfg)
+
+    if args.command == "import":
+        from orienter.sources.csv_import import CsvImportError, parse_steps_csv
+
+        for path in args.files:
+            try:
+                counts = parse_steps_csv(path.read_text(encoding="utf-8-sig"))
+            except (OSError, CsvImportError) as e:
+                print(f"{path}: {e}", file=sys.stderr)
+                return 1
+            core.game.import_steps(counts, source="garmin-csv")
+            print(f"{path}: {len(counts)} days ({min(counts)} to {max(counts)})")
+        if core.game.configured:
+            for err in core.sync().errors:
+                print(f"error: {err}", file=sys.stderr)
+        return 0
 
     if args.command == "sync":
         if not core.game.configured:

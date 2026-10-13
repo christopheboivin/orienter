@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from orienter import db
 from orienter.app import App
 from orienter.config import load_config
+from orienter.sources.csv_import import CsvImportError
 
 STATIC = Path(__file__).parent / "static"
 
@@ -23,6 +24,11 @@ class SetupIn(BaseModel):
 
 class StrideIn(BaseModel):
     stride_m: float = Field(gt=0.2, lt=2.0)
+
+
+class ImportIn(BaseModel):
+    name: str
+    text: str = Field(max_length=5_000_000)
 
 
 class DecisionIn(BaseModel):
@@ -67,6 +73,13 @@ def create_app(app_state: App | None = None) -> FastAPI:
             core.game.set_stride(body.stride_m)
         core.sync_in_background()
         return {"ok": True}
+
+    @api.post("/api/import")
+    def import_csv(body: ImportIn):
+        try:
+            return core.import_csv(body.text)
+        except CsvImportError as e:
+            raise HTTPException(400, f"{body.name}: {e}") from e
 
     @api.post("/api/sync")
     def sync(force: bool = False):

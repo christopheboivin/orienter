@@ -345,6 +345,35 @@ async function decide(body) {
   refresh();
 }
 
+// ---------------------------------------------------------------- CSV import
+
+async function importFiles(files, out = $("import-result")) {
+  out.classList.remove("error");
+  const lines = [];
+  for (const file of files) {
+    try {
+      const r = await api("/api/import", { method: "POST", body: { name: file.name, text: await file.text() } });
+      lines.push(`${file.name}: ${r.days} days (${r.first} → ${r.last})`);
+    } catch (e) {
+      out.classList.add("error");
+      lines.push(e.message);
+    }
+  }
+  out.textContent = lines.join(" · ");
+  if (state?.configured) refresh();
+}
+
+const dropzone = $("dropzone");
+$("setup-csv").onchange = (e) => importFiles([...e.target.files], $("setup-import-result"));
+$("csv-files").onchange = (e) => { importFiles([...e.target.files]); e.target.value = ""; };
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("over"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("over");
+  importFiles([...e.dataTransfer.files]);
+});
+
 // ---------------------------------------------------------------- misc
 
 $("sync-btn").onclick = async () => {
