@@ -17,12 +17,17 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org"
 KIND_BY_ADMIN_LEVEL = {"2": "country", "4": "region", "8": "city"}
 
 
+class ServiceBusy(Exception):
+    """A free API refused or timed out: try again later."""
+
+
 class PlaceFinder:
     def __init__(self, http: httpx.Client, wiki_lang: str):
         self.http = http
         self.wiki_lang = wiki_lang
         self.overpass_throttle = Throttle(2.0)
         self.nominatim_throttle = Throttle(1.1)  # Nominatim policy: max 1 request/second
+        self.wiki_throttle = Throttle(1.0)  # Wikimedia throttles bursts from unknown clients
 
     def admin_areas(self, points: list[Point]) -> list[list[dict]]:
         """For each point, the admin areas (country/region/city) containing it."""
@@ -37,13 +42,16 @@ class PlaceFinder:
         query = "\n".join(parts)
         for attempt in range(3):
             self.overpass_throttle.wait()
-            resp = self.http.post(OVERPASS_URL, data={"data": query}, timeout=180)
+            try:
+                resp = self.http.post(OVERPASS_URL, data={"data": query}, timeout=180)
+            except httpx.HTTPError as e:
+                raise ServiceBusy(f"Overpass server unreachable: {e}") from e
             if resp.status_code == 200:
                 break
             if resp.status_code in (429, 504) and attempt < 2:
                 time.sleep(15 * (attempt + 1))
                 continue
-            resp.raise_for_status()
+            raise ServiceBusy(f"Overpass server busy (HTTP {resp.status_code})")
 
         result: list[list[dict]] = []
         current: list[dict] = []
@@ -69,43 +77,56 @@ class PlaceFinder:
             "wikidata": tags.get("wikidata"),
         }
 
-    def wiki_summary(self, wikidata: str | None, wikipedia: str | None) -> dict | None:
-        """Summary of the place's Wikipedia article, preferring the configured language."""
+    def _wiki_get(self, url: str, params: dict | None = None) -> httpx.Response:
+        self.wiki_throttle.wait()
+        try:
+            resp = self.http.get(url, params=params)
+        except httpx.HTTPError as e:
+            raise ServiceBusy(f"Wikipedia unreachable: {e}") from e
+        if resp.status_code in (429, 503):
+            raise ServiceBusy(f"Wikipedia is rate limiting us (HTTP {resp.status_code})")
+        return resp
+
+    def wiki_summary(self, wikidata: str | None, wikipedia: str | None) -> dict:
+        """Summary of the place's Wikipedia article, preferring the configured language.
+
+        Returns summary None when there is no article; raises ServiceBusy when Wikipedia
+        can't answer right now (so the caller can try again later).
+        """
+        none = {"summary": None, "thumbnail": None, "url": None}
         lang, title = None, None
         if wikidata:
+            resp = self._wiki_get(
+                "https://www.wikidata.org/w/api.php",
+                {
+                    "action": "wbgetentities",
+                    "ids": wikidata,
+                    "props": "sitelinks",
+                    "sitefilter": f"{self.wiki_lang}wiki|enwiki",
+                    "format": "json",
+                },
+            )
             try:
-                resp = self.http.get(
-                    "https://www.wikidata.org/w/api.php",
-                    params={
-                        "action": "wbgetentities",
-                        "ids": wikidata,
-                        "props": "sitelinks",
-                        "sitefilter": f"{self.wiki_lang}wiki|enwiki",
-                        "format": "json",
-                    },
-                )
                 links = resp.json()["entities"][wikidata].get("sitelinks", {})
-                for code in (self.wiki_lang, "en"):
-                    if f"{code}wiki" in links:
-                        lang, title = code, links[f"{code}wiki"]["title"]
-                        break
-            except (httpx.HTTPError, KeyError, ValueError) as e:
-                log.warning("wikidata lookup failed for %s: %s", wikidata, e)
+            except (KeyError, ValueError) as e:
+                raise ServiceBusy(f"Unexpected Wikidata answer for {wikidata}") from e
+            for code in (self.wiki_lang, "en"):
+                if f"{code}wiki" in links:
+                    lang, title = code, links[f"{code}wiki"]["title"]
+                    break
         if not title and wikipedia and ":" in wikipedia:
             lang, title = wikipedia.split(":", 1)
         if not title:
-            return None
-        try:
-            resp = self.http.get(
-                f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/"
-                + quote(title.replace(" ", "_"), safe="")
-            )
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-        except (httpx.HTTPError, ValueError) as e:
-            log.warning("wikipedia summary failed for %s:%s: %s", lang, title, e)
-            return None
+            return none
+        resp = self._wiki_get(
+            f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/"
+            + quote(title.replace(" ", "_"), safe="")
+        )
+        if resp.status_code == 404:
+            return none
+        if resp.status_code != 200:
+            raise ServiceBusy(f"Wikipedia answered HTTP {resp.status_code}")
+        data = resp.json()
         return {
             "summary": data.get("extract"),
             "thumbnail": (data.get("thumbnail") or {}).get("source"),

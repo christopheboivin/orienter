@@ -96,5 +96,4 @@ def test_places_carry_the_day_they_were_reached(make_game):
         ("P2", "2026-01-02"),
         ("P3", "2026-01-10"),
     ]  # P4 (150 km) is beyond the 100 km walked
-    assert "summary" not in places[0]
-    assert game.place(places[0]["id"])["name"] == "P0"
+    assert "summary" not in places[0]  # loaded on demand, see App.place

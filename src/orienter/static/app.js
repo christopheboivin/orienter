@@ -116,8 +116,10 @@ const placeDetails = new Map();
 let placesSignature = null;
 
 async function loadPlace(id) {
-  if (!placeDetails.has(id)) placeDetails.set(id, await api(`/api/places/${id}`));
-  return placeDetails.get(id);
+  if (placeDetails.has(id)) return placeDetails.get(id);
+  const d = await api(`/api/places/${id}`);
+  if (!d.error) placeDetails.set(id, d); // Wikipedia busy: ask again next time
+  return d;
 }
 
 function placeItem(p) {
@@ -138,7 +140,8 @@ function placeItem(p) {
     det.append(para);
     try {
       const d = await loadPlace(p.id);
-      para.textContent = d.summary || "No Wikipedia article found.";
+      para.textContent = d.error ? `${d.error}. Close and reopen to retry.` : d.summary || "No Wikipedia article found.";
+      if (d.error) delete det.dataset.filled;
       if (d.url) {
         const a = Object.assign(document.createElement("a"), { href: d.url, target: "_blank", rel: "noopener", textContent: "Wikipedia" });
         det.append(a);

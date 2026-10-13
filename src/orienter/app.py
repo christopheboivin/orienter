@@ -9,7 +9,7 @@ from orienter.config import Config
 from orienter.game import Game
 from orienter.net import client
 from orienter.photos import PhotoFinder
-from orienter.places import PlaceFinder
+from orienter.places import PlaceFinder, ServiceBusy
 from orienter.routing import OrsRouter
 from orienter.sources.csv_import import parse_steps_csv
 from orienter.sources.garmin import GarminStepSource
@@ -81,6 +81,8 @@ class App:
                     self.status.errors.append(f"Step sync failed: {e}")
             if game.configured and game.router is not None:
                 game.advance(progress=self._progress, should_stop=self._cancel.is_set)
+                if game.places_error:
+                    self.status.errors.append(game.places_error)
         except Exception as e:
             log.exception("sync failed")
             self.status.errors.append(str(e))
@@ -89,6 +91,26 @@ class App:
             self.status.busy = False
             self.status.message = ""
         return self.status
+
+    def place(self, place_id: int) -> dict | None:
+        """A place with its Wikipedia summary, fetched on first request and then kept."""
+        with self.lock:
+            row = self.conn.execute("SELECT * FROM places WHERE id = ?", (place_id,)).fetchone()
+        if row is None:
+            return None
+        place = {k: row[k] for k in ("id", "kind", "name", "summary", "thumbnail", "url")}
+        if row["summary"] is None:  # never looked up (no article is stored as "")
+            try:
+                info = self.places.wiki_summary(row["wikidata"], row["wikipedia"])
+            except ServiceBusy as e:
+                return {**place, "summary": None, "error": str(e)}
+            place.update(info, summary=info["summary"] or "")
+            with self.lock, self.conn:
+                self.conn.execute(
+                    "UPDATE places SET summary = ?, thumbnail = ?, url = ? WHERE id = ?",
+                    (place["summary"], place["thumbnail"], place["url"], place_id),
+                )
+        return place
 
     def sync_in_background(self, force: bool = False) -> bool:
         """Start a background sync; if one is running, run another right after it."""

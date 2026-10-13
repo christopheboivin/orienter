@@ -17,7 +17,7 @@ from orienter.geo import (
     simplify,
     split_path,
 )
-from orienter.places import PlaceFinder
+from orienter.places import PlaceFinder, ServiceBusy
 from orienter.planner import EAST, HEADINGS, plan_leg
 from orienter.routing import Router
 from orienter.sources import StepSource
@@ -50,6 +50,7 @@ class Game:
         self.router = router
         self.places = places
         self._display_cache: dict[int, list[Point]] = {}
+        self.places_error: str | None = None  # set when place lookup had to pause
 
     # ---- settings -------------------------------------------------------------------
 
@@ -159,12 +160,6 @@ class Game:
         leg = self._last_leg()
         return tuple(json.loads(leg["geometry"])[-1]) if leg else self.home
 
-    def place(self, place_id: int) -> dict | None:
-        row = self.conn.execute(
-            "SELECT id, kind, name, summary, thumbnail, url FROM places WHERE id = ?", (place_id,)
-        ).fetchone()
-        return dict(row) if row else None
-
     def pending_decision(self) -> sqlite3.Row | None:
         return self.conn.execute(
             "SELECT * FROM decisions WHERE resolved_at IS NULL ORDER BY id DESC LIMIT 1"
@@ -236,7 +231,7 @@ class Game:
         should_stop: Callable[[], bool] = lambda: False,
     ) -> None:
         """Find the cities/regions/countries crossed by legs not yet analysed."""
-        if self.places is None:
+        if self.places is None or self.places_error:  # don't insist while the server is down
             return
         todo = self.conn.execute(
             "SELECT * FROM legs WHERE places_done = 0 AND mode = 'walk' ORDER BY seq"
@@ -249,17 +244,17 @@ class Game:
             samples = sample_every(path, PLACE_SAMPLE_M)
             try:
                 areas = self.places.admin_areas([p for _, p in samples])
-            except Exception as e:  # places are a bonus; retry next sync
+            except ServiceBusy as e:  # places are a bonus: retry at the next sync
                 log.warning("place lookup failed for leg %s: %s", leg["seq"], e)
+                self.places_error = f"Place lookup paused ({e}); it resumes at the next sync."
                 return
-            new_places = []
             with self.conn:
                 for (dist, point), found in zip(samples, areas, strict=False):
                     for area in found:
                         place = self.places.describe(area)
                         if not place:
                             continue
-                        cur = self.conn.execute(
+                        self.conn.execute(
                             "INSERT OR IGNORE INTO places (kind, osm_id, name, at_walk_m, lat, "
                             "lon, wikipedia, wikidata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                             (
@@ -273,17 +268,7 @@ class Game:
                                 place["wikidata"],
                             ),
                         )
-                        if cur.rowcount:
-                            new_places.append((cur.lastrowid, place))
                 self.conn.execute("UPDATE legs SET places_done = 1 WHERE seq = ?", (leg["seq"],))
-            for place_id, place in new_places:
-                info = self.places.wiki_summary(place["wikidata"], place["wikipedia"])
-                if info:
-                    with self.conn:
-                        self.conn.execute(
-                            "UPDATE places SET summary = ?, thumbnail = ?, url = ? WHERE id = ?",
-                            (info["summary"], info["thumbnail"], info["url"], place_id),
-                        )
 
     def resolve_decision(
         self, choice: str, dest: Point | None = None, label: str | None = None

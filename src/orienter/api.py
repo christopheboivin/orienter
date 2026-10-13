@@ -104,8 +104,7 @@ def create_app(app_state: App | None = None) -> FastAPI:
 
     @api.get("/api/places/{place_id}")
     def place(place_id: int):
-        with core.lock:
-            found = core.game.place(place_id)
+        found = core.place(place_id)
         if found is None:
             raise HTTPException(404, "No such place.")
         return found

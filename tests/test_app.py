@@ -52,3 +52,29 @@ def test_page_stays_responsive_during_a_long_sync(tmp_path):
     core.stop_sync()
     assert not core.status.errors, core.status.errors
     assert core.game.legs()
+
+
+def test_place_summary_is_fetched_once_and_busy_is_not_cached(tmp_path):
+    from orienter.places import ServiceBusy
+
+    class FakePlaces:
+        calls = 0
+        busy = True
+
+        def wiki_summary(self, wikidata, wikipedia):
+            FakePlaces.calls += 1
+            if FakePlaces.busy:
+                raise ServiceBusy("Wikipedia is rate limiting us (HTTP 429)")
+            return {"summary": "A town.", "thumbnail": None, "url": "https://w/x"}
+
+    core = make_app(tmp_path)
+    core.places = FakePlaces()
+    core.conn.execute(
+        "INSERT INTO places (id, kind, osm_id, name, at_walk_m, lat, lon, wikidata) "
+        "VALUES (1, 'city', 'a', 'X', 0, 0, 0, 'Q1')"
+    )
+    assert "error" in core.place(1)  # busy: reported, nothing stored
+    FakePlaces.busy = False
+    assert core.place(1)["summary"] == "A town."
+    assert core.place(1)["summary"] == "A town."
+    assert FakePlaces.calls == 2  # the third call came from the database
