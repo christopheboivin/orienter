@@ -5,8 +5,8 @@ from typing import Protocol
 
 import httpx
 
-from eastwalk.geo import Point
-from eastwalk.net import Throttle
+from orienter.geo import Point
+from orienter.net import Throttle
 
 ORS_URL = "https://api.openrouteservice.org"
 PROFILE = "foot-walking"

@@ -6,9 +6,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from eastwalk import db
-from eastwalk.app import App
-from eastwalk.config import load_config
+from orienter import db
+from orienter.app import App
+from orienter.config import load_config
 
 STATIC = Path(__file__).parent / "static"
 
@@ -34,7 +34,7 @@ class DecisionIn(BaseModel):
 
 def create_app(app_state: App | None = None) -> FastAPI:
     core = app_state or App(load_config())
-    api = FastAPI(title="eastwalk")
+    api = FastAPI(title="orienter")
 
     @api.get("/")
     def index():

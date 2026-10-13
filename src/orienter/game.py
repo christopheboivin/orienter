@@ -6,8 +6,8 @@ import sqlite3
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
-from eastwalk import db
-from eastwalk.geo import (
+from orienter import db
+from orienter.geo import (
     Point,
     haversine_m,
     path_length_m,
@@ -16,10 +16,10 @@ from eastwalk.geo import (
     simplify,
     split_path,
 )
-from eastwalk.places import PlaceFinder
-from eastwalk.planner import EAST, HEADINGS, plan_leg
-from eastwalk.routing import Router
-from eastwalk.sources import StepSource
+from orienter.places import PlaceFinder
+from orienter.planner import EAST, HEADINGS, plan_leg
+from orienter.routing import Router
+from orienter.sources import StepSource
 
 log = logging.getLogger(__name__)
 

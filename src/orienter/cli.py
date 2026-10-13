@@ -7,7 +7,7 @@ import webbrowser
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="eastwalk", description="Walk east, one step at a time.")
+    parser = argparse.ArgumentParser(prog="orienter", description="Walk east, one step at a time.")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -27,12 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
-    from eastwalk.config import load_config
+    from orienter.config import load_config
 
     cfg = load_config()
 
     if args.command == "garmin-login":
-        from eastwalk.sources.garmin import interactive_login
+        from orienter.sources.garmin import interactive_login
 
         email = input("Garmin email: ").strip()
         password = getpass.getpass("Garmin password (not stored): ")
@@ -40,13 +40,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Logged in as {name}. Tokens saved to {cfg.garmin_tokenstore}")
         return 0
 
-    from eastwalk.app import App
+    from orienter.app import App
 
     core = App(cfg)
 
     if args.command == "sync":
         if not core.game.configured:
-            print("Not configured yet: run `eastwalk serve` and complete the setup.")
+            print("Not configured yet: run `orienter serve` and complete the setup.")
             return 1
         status = core.sync(force=args.force)
         for err in status.errors:
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
 
     import uvicorn
 
-    from eastwalk.api import create_app
+    from orienter.api import create_app
 
     url = f"http://127.0.0.1:{args.port}"
     if not args.no_browser:

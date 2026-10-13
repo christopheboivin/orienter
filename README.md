@@ -1,4 +1,4 @@
-# Eastwalk
+# Orienter
 
 Walk east from home, one real step at a time. Daily steps from your Garmin watch move a
 walker along real roads and trails (OpenStreetMap), heading east. Along the way you get the
@@ -30,8 +30,8 @@ Garmin ──► sync ──► SQLite (daily steps, planned legs, places)
 2. `uv sync`
 3. `copy .env.example .env` and set `ORS_API_KEY` (free:
    https://openrouteservice.org/dev/#/signup). Optional: `MAPILLARY_TOKEN`, `WIKI_LANG`.
-4. `uv run eastwalk garmin-login` (password is used once, only tokens are stored in `data/`)
-5. `uv run eastwalk serve`, then choose your home and start date in the browser.
+4. `uv run orienter garmin-login` (password is used once, only tokens are stored in `data/`)
+5. `uv run orienter serve`, then choose your home and start date in the browser.
 
 ### Daily update
 
@@ -39,7 +39,7 @@ The app syncs when it starts and when the page asks it to. For a sync even when 
 running, create a daily Windows Task Scheduler job:
 
 ```
-schtasks /Create /SC DAILY /ST 06:00 /TN Eastwalk /TR "cmd /c cd /d C:\Users\chris\code\eastwalk && uv run eastwalk sync"
+schtasks /Create /SC DAILY /ST 06:00 /TN Orienter /TR "cmd /c cd /d C:\Users\chris\code\orienter && uv run orienter sync"
 ```
 
 ## Development
@@ -49,7 +49,7 @@ uv run pytest
 uv run ruff check . && uv run ruff format .
 ```
 
-Code map (`src/eastwalk/`): `sources/` step providers (Garmin behind a `StepSource`
+Code map (`src/orienter/`): `sources/` step providers (Garmin behind a `StepSource`
 protocol) · `planner.py` leg planning · `routing.py` openrouteservice · `game.py` steps →
 position, decisions, places · `places.py` Overpass + Wikipedia · `photos.py` Mapillary /
 Wikimedia Commons · `api.py` FastAPI · `static/` the web page.

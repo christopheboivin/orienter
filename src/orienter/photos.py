@@ -6,7 +6,7 @@ import re
 
 import httpx
 
-from eastwalk.geo import haversine_m
+from orienter.geo import haversine_m
 
 log = logging.getLogger(__name__)
 

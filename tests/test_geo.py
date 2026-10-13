@@ -1,6 +1,6 @@
 import pytest
 
-from eastwalk.geo import (
+from orienter.geo import (
     destination,
     east_displacement_m,
     haversine_m,

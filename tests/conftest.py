@@ -2,9 +2,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from eastwalk import db
-from eastwalk.game import Game
-from eastwalk.geo import Point
+from orienter import db
+from orienter.game import Game
+from orienter.geo import Point
 
 
 class FakeRouter:

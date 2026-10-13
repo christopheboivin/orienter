@@ -7,8 +7,8 @@ from urllib.parse import quote
 
 import httpx
 
-from eastwalk.geo import Point
-from eastwalk.net import Throttle
+from orienter.geo import Point
+from orienter.net import Throttle
 
 log = logging.getLogger(__name__)
 

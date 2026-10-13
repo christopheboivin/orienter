@@ -8,8 +8,8 @@ end, and a detour cap rejects routes that wander off (e.g. around a huge lake).
 
 import math
 
-from eastwalk.geo import EARTH_RADIUS_M, Point, destination, east_displacement_m, path_length_m
-from eastwalk.routing import Router
+from orienter.geo import EARTH_RADIUS_M, Point, destination, east_displacement_m, path_length_m
+from orienter.routing import Router
 
 # Heading modes: walk east, or follow a coast north/south until east is open again.
 EAST, COAST_NORTH, COAST_SOUTH = "east", "coast_north", "coast_south"

@@ -2,8 +2,8 @@ from datetime import date
 
 import pytest
 
-from eastwalk.geo import haversine_m
-from eastwalk.planner import COAST_NORTH, EAST
+from orienter.geo import haversine_m
+from orienter.planner import COAST_NORTH, EAST
 
 
 def test_steps_to_distance(make_game):

@@ -4,14 +4,14 @@ import logging
 import threading
 from dataclasses import dataclass, field
 
-from eastwalk import db
-from eastwalk.config import Config
-from eastwalk.game import Game
-from eastwalk.net import client
-from eastwalk.photos import PhotoFinder
-from eastwalk.places import PlaceFinder
-from eastwalk.routing import OrsRouter
-from eastwalk.sources.garmin import GarminStepSource
+from orienter import db
+from orienter.config import Config
+from orienter.game import Game
+from orienter.net import client
+from orienter.photos import PhotoFinder
+from orienter.places import PlaceFinder
+from orienter.routing import OrsRouter
+from orienter.sources.garmin import GarminStepSource
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class App:
         if not self.cfg.ors_api_key:
             out.append("ORS_API_KEY is missing in .env: the route can't be planned.")
         if not self.source.is_logged_in:
-            out.append("Not logged in to Garmin: run `uv run eastwalk garmin-login`.")
+            out.append("Not logged in to Garmin: run `uv run orienter garmin-login`.")
         return out
 
     def sync(self, force: bool = False) -> SyncStatus:

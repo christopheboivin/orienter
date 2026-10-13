@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const fmt = new Intl.NumberFormat();
 const km = (m) => `${fmt.format(Math.round(m / 100) / 10)} km`;
-const SEEN_KEY = "eastwalk.seenPlaces";
+const SEEN_KEY = "orienter.seenPlaces";
 
 const map = L.map("map", { worldCopyJump: true }).setView([45.5, -73.6], 5);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {

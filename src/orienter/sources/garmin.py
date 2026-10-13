@@ -1,7 +1,7 @@
 """Garmin Connect step source.
 
 Uses the unofficial `garminconnect` library (Garmin's official API is partner-only).
-Your password is only used once, by `eastwalk garmin-login`; afterwards OAuth tokens
+Your password is only used once, by `orienter garmin-login`; afterwards OAuth tokens
 are reused from the token store. Expect this to break occasionally when Garmin changes
 its login flow: upgrade `garminconnect` first.
 """
@@ -27,7 +27,7 @@ class GarminStepSource:
     def _api(self) -> Garmin:
         if self._client is None:
             if not self.is_logged_in:
-                raise RuntimeError("Not logged in to Garmin: run `uv run eastwalk garmin-login`.")
+                raise RuntimeError("Not logged in to Garmin: run `uv run orienter garmin-login`.")
             client = Garmin()
             client.login(str(self.tokenstore))
             self._client = client
