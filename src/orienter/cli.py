@@ -32,11 +32,22 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config()
 
     if args.command == "garmin-login":
+        from garminconnect import GarminConnectTooManyRequestsError
+
         from orienter.sources.garmin import interactive_login
 
         email = input("Garmin email: ").strip()
         password = getpass.getpass("Garmin password (not stored): ")
-        name = interactive_login(cfg.garmin_tokenstore, email, password)
+        try:
+            name = interactive_login(cfg.garmin_tokenstore, email, password)
+        except GarminConnectTooManyRequestsError:
+            print(
+                "Garmin is rate limiting logins from this computer/network (HTTP 429).\n"
+                "Don't retry right away: each attempt extends the block. Try again in an hour\n"
+                "or more, or once from another network (e.g. a phone hotspot).",
+                file=sys.stderr,
+            )
+            return 1
         print(f"Logged in as {name}. Tokens saved to {cfg.garmin_tokenstore}")
         return 0
 
