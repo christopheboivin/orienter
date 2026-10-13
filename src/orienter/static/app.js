@@ -265,6 +265,7 @@ function openSetup() {
   $("start-date").max = today;
   if (!$("start-date").value) $("start-date").value = state?.start_date || today;
   if (state?.stride_m) $("setup-stride").value = state.stride_m;
+  if (state?.home && !chosenHome) chooseHome(state.home);
   $("setup").showModal();
 }
 
@@ -282,6 +283,9 @@ $("setup").addEventListener("cancel", (e) => {
 $("setup-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!chosenHome) return;
+  const save = $("setup-save");
+  save.disabled = true;
+  save.textContent = "Saving…";
   try {
     await api("/api/setup", {
       method: "POST",
@@ -296,6 +300,9 @@ $("setup-form").addEventListener("submit", async (e) => {
   } catch (err) {
     alert(err.message);
     return;
+  } finally {
+    save.disabled = false;
+    save.textContent = "Start walking";
   }
   $("setup").close();
   setupMarker?.remove();

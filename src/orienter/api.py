@@ -50,18 +50,20 @@ def create_app(app_state: App | None = None) -> FastAPI:
     def state():
         with core.lock:
             s = core.game.state()
+            problems = core.problems()
         s["sync"] = {
             "busy": core.status.busy,
             "message": core.status.message,
             "errors": core.status.errors,
         }
-        s["problems"] = core.problems()
+        s["problems"] = problems
         return s
 
     @api.post("/api/setup")
     def setup(body: SetupIn):
         if body.start_date > date.today():
             raise HTTPException(400, "Start date can't be in the future.")
+        core.stop_sync()  # don't let a running sync keep planning from the old home
         with core.lock:
             core.game.setup(body.lat, body.lon, body.label, body.start_date, body.stride_m)
         core.sync_in_background(force=True)

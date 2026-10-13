@@ -181,7 +181,10 @@ class Game:
         )
 
     def advance(
-        self, max_legs: int = MAX_LEGS_PER_RUN, progress: Callable[[str], None] = lambda _: None
+        self,
+        max_legs: int = MAX_LEGS_PER_RUN,
+        progress: Callable[[str], None] = lambda _: None,
+        should_stop: Callable[[], bool] = lambda: False,
     ) -> int:
         """Plan legs until the route covers the walked distance. Returns legs planned."""
         if self.router is None:
@@ -190,6 +193,7 @@ class Game:
         planned = 0
         while (
             self.planned_end_m() < target
+            and not should_stop()
             and planned < max_legs
             and not self.get("ended", False)
             and self.pending_decision() is None
@@ -215,10 +219,15 @@ class Game:
                 self._add_leg("walk", path, path_length_m(path))
                 db.set_setting(self.conn, "heading", heading)
             planned += 1
-        self.detect_places(progress)
+            self.detect_places(progress, should_stop)  # places show up as the route grows
+        self.detect_places(progress, should_stop)  # retry legs whose lookup failed earlier
         return planned
 
-    def detect_places(self, progress: Callable[[str], None] = lambda _: None) -> None:
+    def detect_places(
+        self,
+        progress: Callable[[str], None] = lambda _: None,
+        should_stop: Callable[[], bool] = lambda: False,
+    ) -> None:
         """Find the cities/regions/countries crossed by legs not yet analysed."""
         if self.places is None:
             return
@@ -226,6 +235,8 @@ class Game:
             "SELECT * FROM legs WHERE places_done = 0 AND mode = 'walk' ORDER BY seq"
         ).fetchall()
         for i, leg in enumerate(todo, 1):
+            if should_stop():
+                return
             progress(f"Looking up places along the route ({i}/{len(todo)})")
             path = [tuple(p) for p in json.loads(leg["geometry"])]
             samples = sample_every(path, PLACE_SAMPLE_M)
