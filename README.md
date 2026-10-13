@@ -61,3 +61,5 @@ Wikimedia Commons · `api.py` FastAPI · `static/` the web page.
 
 Map data © OpenStreetMap contributors. Routing by openrouteservice. Photos from Mapillary
 (CC BY-SA) or Wikimedia Commons (per-image license). Trivia from Wikipedia (CC BY-SA).
+
+Concept heavilly inspired by/plagiarized on https://www.thebeautifulwalk.com/fr/home
