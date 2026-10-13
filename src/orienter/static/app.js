@@ -68,18 +68,13 @@ function renderMap(s) {
   }
 
   if (firstRender) {
-    const bounds = L.latLngBounds([home, here]);
-    if (bounds.getNorthEast().equals(bounds.getSouthWest())) map.setView(here, 13);
-    else map.fitBounds(bounds.pad(0.2));
+    map.invalidateSize();
+    map.setView(here, 12);
     firstRender = false;
   }
 }
 
 function renderSidebar(s) {
-  const cur = s.current_place;
-  $("place-name").textContent = cur.city || cur.region || cur.country || "Somewhere on the road";
-  $("place-sub").textContent = [cur.city && cur.region, cur.country].filter(Boolean).join(", ");
-
   const st = s.stats;
   $("s-steps").textContent = fmt.format(st.steps);
   $("s-km").textContent = km(st.walked_m);
@@ -139,6 +134,22 @@ function renderStatus(s) {
   const problems = [...s.problems, ...sync.errors];
   $("problems").hidden = !problems.length;
   $("problems").replaceChildren(...problems.map((t) => Object.assign(document.createElement("p"), { textContent: t })));
+}
+
+let lastWhereKey = null;
+
+async function renderWhere(s) {
+  const key = `${s.position.lat.toFixed(2)},${s.position.lon.toFixed(2)}`;
+  if (key === lastWhereKey) return;
+  lastWhereKey = key;
+  try {
+    const w = await api(`/api/whereami?lat=${s.position.lat}&lon=${s.position.lon}`);
+    $("place-name").textContent = w.city || w.region || w.country || "Somewhere on the road";
+    $("place-sub").textContent = [w.city && w.region, w.country].filter(Boolean).join(", ");
+  } catch (e) {
+    lastWhereKey = null;
+    console.warn("whereami", e);
+  }
 }
 
 async function renderPhoto(s) {
@@ -214,6 +225,7 @@ async function refresh() {
   renderMap(state);
   renderSidebar(state);
   renderPhoto(state);
+  renderWhere(state);
   if (!state.sync.busy) {
     announceNewPlaces(state);
     showDecision(state);
@@ -309,6 +321,7 @@ $("setup-form").addEventListener("submit", async (e) => {
   setupMarker = null;
   firstRender = true;
   lastPhotoKey = null;
+  lastWhereKey = null;
   refresh();
 });
 
@@ -395,3 +408,29 @@ $("stride-form").addEventListener("submit", async (e) => {
 });
 
 refresh();
+
+// ---------------------------------------------------------------- map buttons
+
+const MapButtons = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const box = L.DomUtil.create("div", "leaflet-bar map-buttons");
+    const add = (label, title, fn) => {
+      const a = L.DomUtil.create("a", "", box);
+      a.href = "#";
+      a.textContent = label;
+      a.title = title;
+      L.DomEvent.on(a, "click", (e) => { L.DomEvent.preventDefault(e); fn(); });
+    };
+    add("◎", "Where I am", () => state && map.setView([state.position.lat, state.position.lon], 12));
+    add("⤢", "Whole journey", () => {
+      if (!state) return;
+      const pts = [[state.home.lat, state.home.lon], [state.position.lat, state.position.lon]];
+      for (const seg of [...state.walked, ...state.ahead]) pts.push(...seg.path);
+      map.fitBounds(L.latLngBounds(pts).pad(0.05));
+    });
+    L.DomEvent.disableClickPropagation(box);
+    return box;
+  },
+});
+new MapButtons().addTo(map);

@@ -112,6 +112,31 @@ class PlaceFinder:
             "url": data.get("content_urls", {}).get("desktop", {}).get("page"),
         }
 
+    def reverse(self, lat: float, lon: float) -> dict:
+        """Locality, region and country at a point."""
+        self.nominatim_throttle.wait()
+        resp = self.http.get(
+            f"{NOMINATIM_URL}/reverse",
+            params={
+                "lat": lat,
+                "lon": lon,
+                "format": "jsonv2",
+                "zoom": 12,
+                "accept-language": f"{self.wiki_lang},en",
+            },
+        )
+        resp.raise_for_status()
+        addr = resp.json().get("address", {})
+        locality = next(
+            (
+                addr[k]
+                for k in ("city", "town", "village", "municipality", "hamlet", "suburb", "county")
+                if k in addr
+            ),
+            None,
+        )
+        return {"city": locality, "region": addr.get("state"), "country": addr.get("country")}
+
     def geocode(self, query: str) -> list[dict]:
         self.nominatim_throttle.wait()
         resp = self.http.get(

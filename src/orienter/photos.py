@@ -10,6 +10,12 @@ from orienter.geo import haversine_m
 
 log = logging.getLogger(__name__)
 
+# Geotagged pictures that aren't of the place: astronaut photography, satellite imagery, maps.
+NOT_A_VIEW = re.compile(
+    r"ISSd|space center|earth observatory|astronaut|nasa|satellite|map|carte",
+    re.IGNORECASE,
+)
+
 
 class PhotoFinder:
     def __init__(self, http: httpx.Client, mapillary_token: str | None):
@@ -76,6 +82,7 @@ class PhotoFinder:
                 "ggslimit": 30,
                 "prop": "imageinfo|coordinates",
                 "iiprop": "url|mime|extmetadata",
+                "iiextmetadatafilter": "Artist|LicenseShortName|ImageDescription",
                 "iiurlwidth": 1024,
             },
         )
@@ -85,6 +92,16 @@ class PhotoFinder:
             info = (page.get("imageinfo") or [{}])[0]
             coord = (page.get("coordinates") or [None])[0]
             if not coord or info.get("mime") not in ("image/jpeg", "image/png"):
+                continue
+            meta = info.get("extmetadata", {})
+            about = " ".join(
+                [
+                    page.get("title", ""),
+                    meta.get("Artist", {}).get("value", ""),
+                    meta.get("ImageDescription", {}).get("value", ""),
+                ]
+            )
+            if NOT_A_VIEW.search(about):
                 continue
             candidates.append((haversine_m((lat, lon), (coord["lat"], coord["lon"])), page))
         if not candidates:

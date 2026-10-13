@@ -102,10 +102,22 @@ def create_app(app_state: App | None = None) -> FastAPI:
     def geocode(q: str):
         return core.places.geocode(q)
 
+    @api.get("/api/whereami")
+    def whereami(lat: float, lon: float):
+        key = f"where:{lat:.2f},{lon:.2f}:{core.cfg.wiki_lang}"  # ~1 km buckets
+        with core.lock:
+            cached = db.cache_get(core.conn, key)
+        if cached is not None:
+            return cached
+        found = core.places.reverse(lat, lon)
+        with core.lock:
+            db.cache_put(core.conn, key, found)
+        return found
+
     @api.get("/api/photo")
     def photo(lat: float, lon: float):
         # ~100 m buckets so the photo doesn't change on every refresh
-        key = f"photo:{lat:.3f},{lon:.3f}"
+        key = f"photo2:{lat:.3f},{lon:.3f}"  # v2: space/map pictures filtered
         with core.lock:
             cached = db.cache_get(core.conn, key)
         if cached is not None:
