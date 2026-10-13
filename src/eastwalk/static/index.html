@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eastwalk</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Eastwalk <span class="arrow">→</span></h1>
+    <div id="sync-status" class="muted"></div>
+    <button id="sync-btn" type="button">Sync now</button>
+  </header>
+  <div id="problems" hidden></div>
+
+  <main>
+    <div id="map"></div>
+    <aside>
+      <section id="where">
+        <div class="eyebrow">You are near</div>
+        <h2 id="place-name">…</h2>
+        <div id="place-sub" class="muted"></div>
+        <figure id="photo" hidden>
+          <a id="photo-link" target="_blank" rel="noopener"><img id="photo-img" alt="Photo near your position"></a>
+          <figcaption id="photo-credit" class="muted"></figcaption>
+        </figure>
+      </section>
+
+      <section>
+        <h3>Journey</h3>
+        <dl class="stats">
+          <div><dt>Steps</dt><dd id="s-steps">0</dd></div>
+          <div><dt>Walked</dt><dd id="s-km">0 km</dd></div>
+          <div><dt>From home (straight)</dt><dd id="s-crow">0 km</dd></div>
+          <div><dt>Days</dt><dd id="s-days">0</dd></div>
+          <div><dt>Daily average</dt><dd id="s-avg">0</dd></div>
+          <div><dt>Last day</dt><dd id="s-last">–</dd></div>
+        </dl>
+        <div id="banked" class="note" hidden></div>
+      </section>
+
+      <section>
+        <h3>Next milestones</h3>
+        <div class="progress"><span>Steps</span><div class="bar"><i id="m-steps-bar"></i></div><span id="m-steps"></span></div>
+        <div class="progress"><span>Distance</span><div class="bar"><i id="m-km-bar"></i></div><span id="m-km"></span></div>
+      </section>
+
+      <section>
+        <h3>Places entered <span id="places-count" class="muted"></span></h3>
+        <ol id="places"></ol>
+      </section>
+
+      <section>
+        <h3>Settings</h3>
+        <form id="stride-form" class="inline">
+          <label>Stride length (m) <input id="stride" type="number" step="0.01" min="0.3" max="1.5"></label>
+          <button type="submit">Save</button>
+        </form>
+        <p class="muted small" id="settings-info"></p>
+        <button id="reconfigure" type="button" class="link">Change home / start date (restarts the journey)</button>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="setup">
+    <form method="dialog" id="setup-form">
+      <h2>Where does the journey start?</h2>
+      <label>Your starting point
+        <span class="row"><input id="home-q" placeholder="Address or place"><button type="button" id="home-search">Search</button></span>
+      </label>
+      <ul id="home-results" class="results"></ul>
+      <p class="muted small">…or click on the map behind this dialog after closing the search results.</p>
+      <p id="home-chosen" class="chosen"></p>
+      <label>Count steps from <input id="start-date" type="date" required></label>
+      <label>Stride length (m) <input id="setup-stride" type="number" step="0.01" min="0.3" max="1.5" value="0.75" required></label>
+      <p class="muted small">Steps are the unit of the game; stride turns them into distance. ~0.415 × your height is a good walking estimate.</p>
+      <menu><button type="submit" id="setup-save" disabled>Start walking</button></menu>
+    </form>
+  </dialog>
+
+  <dialog id="decision">
+    <form method="dialog">
+      <h2>End of the road</h2>
+      <p id="decision-reason"></p>
+      <div class="choices">
+        <button type="button" data-choice="coast_north">Follow the coast north</button>
+        <button type="button" data-choice="coast_south">Follow the coast south</button>
+        <button type="button" data-choice="ferry">Take a ferry…</button>
+        <button type="button" data-choice="flight">Take a flight…</button>
+        <button type="button" data-choice="end" class="danger">End the journey here</button>
+      </div>
+      <div id="travel" hidden>
+        <label><span id="travel-title">Destination</span>
+          <span class="row"><input id="travel-q" placeholder="Port, city…"><button type="button" id="travel-search">Search</button></span>
+        </label>
+        <ul id="travel-results" class="results"></ul>
+        <p class="muted small">Ferries and flights don't use your steps. Walking resumes eastward from the destination.</p>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="arrival">
+    <form method="dialog">
+      <div class="eyebrow" id="arrival-kind"></div>
+      <h2 id="arrival-name"></h2>
+      <img id="arrival-img" alt="" hidden>
+      <p id="arrival-summary"></p>
+      <p><a id="arrival-link" target="_blank" rel="noopener">Read more on Wikipedia</a></p>
+      <menu><button>Keep walking</button></menu>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
