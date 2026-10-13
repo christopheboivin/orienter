@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const fmt = new Intl.NumberFormat();
 const km = (m) => `${fmt.format(Math.round(m / 100) / 10)} km`;
-const SEEN_KEY = "orienter.seenPlaces";
+const SEEN_KEY = "orienter.seenWalkedM";
 
 const map = L.map("map", { worldCopyJump: true }).setView([45.5, -73.6], 5);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -97,34 +97,108 @@ function renderSidebar(s) {
     $("m-km-bar").style.width = `${(100 * (st.walked_m / 1000 - from)) / (m.next_km - from)}%`;
   }
 
-  $("places-count").textContent = s.places.length ? `(${s.places.length})` : "";
-  const list = $("places");
-  list.replaceChildren();
-  for (const p of [...s.places].reverse()) {
-    const li = document.createElement("li");
-    const det = document.createElement("details");
-    const sum = document.createElement("summary");
-    sum.innerHTML = `<span class="kind"></span><strong></strong> <span class="muted small"></span>`;
-    sum.querySelector(".kind").textContent = p.kind;
-    sum.querySelector("strong").textContent = p.name;
-    sum.querySelector(".small").textContent = `at ${km(p.at_walk_m)}`;
-    det.append(sum);
-    const para = document.createElement("p");
-    para.textContent = p.summary || "No Wikipedia article found.";
-    det.append(para);
-    if (p.url) {
-      const a = document.createElement("a");
-      a.href = p.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Wikipedia";
-      det.append(a);
-    }
-    li.append(det);
-    list.append(li);
-  }
+  renderPlaces(s.places);
 
   $("stride").value = s.stride_m;
   $("settings-info").textContent =
     `Home: ${s.home.label}. Counting since ${s.start_date}. Heading: ${s.heading.replace("_", " ")}.` +
     (s.last_sync ? ` Last sync ${new Date(s.last_sync).toLocaleString()}.` : "");
+}
+
+// ---------------------------------------------------------------- places, grouped by month
+
+const monthFmt = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+const dayFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+const KIND_LABEL = { country: ["country", "countries"], region: ["region", "regions"], city: ["city", "cities"] };
+const openMonths = new Set();
+const openPlaces = new Set();
+const placeDetails = new Map();
+let placesSignature = null;
+
+async function loadPlace(id) {
+  if (!placeDetails.has(id)) placeDetails.set(id, await api(`/api/places/${id}`));
+  return placeDetails.get(id);
+}
+
+function placeItem(p) {
+  const li = document.createElement("li");
+  const det = document.createElement("details");
+  const sum = document.createElement("summary");
+  sum.innerHTML = `<span class="kind"></span><strong></strong> <span class="muted small"></span>`;
+  sum.querySelector(".kind").textContent = p.kind;
+  sum.querySelector("strong").textContent = p.name;
+  const when = p.reached_on ? `${dayFmt.format(new Date(`${p.reached_on}T12:00:00`))} · ` : "";
+  sum.querySelector(".small").textContent = `${when}${km(p.at_walk_m)}`;
+  det.append(sum);
+  const fill = async () => {
+    if (det.dataset.filled) return;
+    det.dataset.filled = "1";
+    const para = document.createElement("p");
+    para.textContent = "…";
+    det.append(para);
+    try {
+      const d = await loadPlace(p.id);
+      para.textContent = d.summary || "No Wikipedia article found.";
+      if (d.url) {
+        const a = Object.assign(document.createElement("a"), { href: d.url, target: "_blank", rel: "noopener", textContent: "Wikipedia" });
+        det.append(a);
+      }
+    } catch (e) {
+      para.textContent = e.message;
+      delete det.dataset.filled;
+    }
+  };
+  det.open = openPlaces.has(p.id);
+  if (det.open) fill();
+  det.ontoggle = () => {
+    if (det.open) { openPlaces.add(p.id); fill(); } else openPlaces.delete(p.id);
+  };
+  li.append(det);
+  return li;
+}
+
+function renderPlaces(places) {
+  // Rebuild only when the list changed: keeps the page cheap and expanded items open.
+  const signature = `${places.length}:${places.at(-1)?.id}`;
+  if (signature === placesSignature) return;
+  placesSignature = signature;
+
+  $("places-count").textContent = places.length ? `(${fmt.format(places.length)})` : "";
+  const groups = new Map(); // newest month first, newest place first
+  for (const p of [...places].reverse()) {
+    const key = (p.reached_on || "").slice(0, 7);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+  if (!openMonths.size && groups.size) openMonths.add(groups.keys().next().value);
+
+  const list = $("places");
+  list.replaceChildren();
+  for (const [key, items] of groups) {
+    const li = document.createElement("li");
+    li.className = "month";
+    const det = document.createElement("details");
+    const sum = document.createElement("summary");
+    sum.innerHTML = `<strong></strong> <span class="muted small"></span>`;
+    sum.querySelector("strong").textContent = key ? monthFmt.format(new Date(`${key}-01T12:00:00`)) : "Unknown date";
+    sum.querySelector(".small").textContent = Object.entries(KIND_LABEL)
+      .map(([kind, [one, many]]) => {
+        const n = items.filter((p) => p.kind === kind).length;
+        return n ? `${n} ${n === 1 ? one : many}` : "";
+      })
+      .filter(Boolean)
+      .join(" · ");
+    const ol = document.createElement("ol");
+    const fill = () => { if (!ol.childElementCount) ol.append(...items.map(placeItem)); };
+    det.append(sum, ol);
+    det.open = openMonths.has(key);
+    if (det.open) fill();
+    det.ontoggle = () => {
+      if (det.open) { openMonths.add(key); fill(); } else openMonths.delete(key);
+    };
+    li.append(det);
+    list.append(li);
+  }
 }
 
 function renderStatus(s) {
@@ -171,24 +245,26 @@ async function renderPhoto(s) {
 
 // ---------------------------------------------------------------- game events
 
-function announceNewPlaces(s) {
+async function announceNewPlaces(s) {
+  // Remember only how far we'd walked at the last visit: places beyond that are news.
   let seen;
   try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "null"); } catch { seen = null; }
-  const names = s.places.map((p) => `${p.kind}:${p.name}`);
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(names)); } catch { /* private mode */ }
-  if (seen === null) return; // first visit: don't flood with the starting city/region/country
-  const fresh = s.places.filter((p) => !seen.includes(`${p.kind}:${p.name}`));
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(s.stats.walked_m)); } catch { /* private mode */ }
+  if (typeof seen !== "number") return; // first visit: don't flood with everything so far
+  const fresh = s.places.filter((p) => p.at_walk_m > seen);
   if (!fresh.length) return;
   // Show the biggest news: a new country beats a new region beats a new city.
   const rank = { country: 0, region: 1, city: 2 };
   const p = fresh.sort((a, b) => rank[a.kind] - rank[b.kind])[0];
+  let d = {};
+  try { d = await loadPlace(p.id); } catch { /* show the name anyway */ }
   $("arrival-kind").textContent = `New ${p.kind}${fresh.length > 1 ? ` (+${fresh.length - 1} more)` : ""}`;
   $("arrival-name").textContent = p.name;
-  $("arrival-summary").textContent = p.summary || "";
-  $("arrival-img").hidden = !p.thumbnail;
-  if (p.thumbnail) $("arrival-img").src = p.thumbnail;
-  $("arrival-link").hidden = !p.url;
-  if (p.url) $("arrival-link").href = p.url;
+  $("arrival-summary").textContent = d.summary || "";
+  $("arrival-img").hidden = !d.thumbnail;
+  if (d.thumbnail) $("arrival-img").src = d.thumbnail;
+  $("arrival-link").hidden = !d.url;
+  if (d.url) $("arrival-link").href = d.url;
   if (!$("arrival").open) $("arrival").showModal();
 }
 

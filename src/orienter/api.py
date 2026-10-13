@@ -102,6 +102,14 @@ def create_app(app_state: App | None = None) -> FastAPI:
     def geocode(q: str):
         return core.places.geocode(q)
 
+    @api.get("/api/places/{place_id}")
+    def place(place_id: int):
+        with core.lock:
+            found = core.game.place(place_id)
+        if found is None:
+            raise HTTPException(404, "No such place.")
+        return found
+
     @api.get("/api/whereami")
     def whereami(lat: float, lon: float):
         key = f"where:{lat:.2f},{lon:.2f}:{core.cfg.wiki_lang}"  # ~1 km buckets

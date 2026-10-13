@@ -3,6 +3,7 @@
 import json
 import logging
 import sqlite3
+from bisect import bisect_left
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
@@ -157,6 +158,12 @@ class Game:
     def route_end(self) -> Point:
         leg = self._last_leg()
         return tuple(json.loads(leg["geometry"])[-1]) if leg else self.home
+
+    def place(self, place_id: int) -> dict | None:
+        row = self.conn.execute(
+            "SELECT id, kind, name, summary, thumbnail, url FROM places WHERE id = ?", (place_id,)
+        ).fetchone()
+        return dict(row) if row else None
 
     def pending_decision(self) -> sqlite3.Row | None:
         return self.conn.execute(
@@ -359,18 +366,20 @@ class Game:
             (self.get("start_date"),),
         ).fetchall()
 
-        places = [
-            dict(r)
-            for r in self.conn.execute(
-                "SELECT kind, name, at_walk_m, lat, lon, summary, thumbnail, url FROM places "
-                "WHERE at_walk_m <= ? ORDER BY at_walk_m, CASE kind WHEN 'country' THEN 0 "
-                "WHEN 'region' THEN 1 ELSE 2 END",
-                (walked,),
-            )
-        ]
-        current = {}
-        for p in places:
-            current[p["kind"]] = p["name"]
+        # Day each place was reached: the first day the cumulative walk covers its distance.
+        cumulative, total = [], 0.0
+        for d in days:
+            total += d["steps"] * self.stride_m
+            cumulative.append(total)
+        places = []
+        for r in self.conn.execute(
+            "SELECT id, kind, name, at_walk_m, lat, lon FROM places "
+            "WHERE at_walk_m <= ? ORDER BY at_walk_m, CASE kind WHEN 'country' THEN 0 "
+            "WHEN 'region' THEN 1 ELSE 2 END",
+            (walked,),
+        ):
+            i = min(bisect_left(cumulative, r["at_walk_m"]), len(days) - 1)
+            places.append({**dict(r), "reached_on": days[i]["day"] if days else None})
 
         decision = self.pending_decision()
         planned_end = self.planned_end_m()
@@ -397,7 +406,6 @@ class Game:
             "position": {"lat": lat, "lon": lon},
             "walked": done,
             "ahead": ahead,
-            "current_place": current,
             "places": places,
             "milestones": milestones(steps, walked),
             "decision": dict(decision) if decision else None,

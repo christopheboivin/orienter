@@ -107,3 +107,6 @@ dialog menu { padding: 0; margin: 16px 0 0; display: flex; justify-content: flex
   aside { width: 100%; border-left: 0; }
 }
 .map-buttons a { font-size: 16px; line-height: 26px; }
+#places li.month { border-bottom: 1px solid var(--line); }
+#places li.month > details > summary { padding: 4px 0; }
+#places li.month ol { list-style: none; padding: 0 0 6px 14px; margin: 0; }

@@ -79,3 +79,22 @@ def test_changing_home_restarts_journey(make_game):
     game.setup(1.0, 1.0, "New home", date(2026, 1, 1), 1.0)
     assert not game.legs()
     assert haversine_m(game.position(0)[0], (1.0, 1.0)) < 1
+
+
+def test_places_carry_the_day_they_were_reached(make_game):
+    game = make_game(per_day=10_000, days=10)  # stride 1 m: 10 km/day from 2026-01-01
+    for i, at in enumerate([0, 10_000, 10_001, 95_000, 150_000]):
+        game.conn.execute(
+            "INSERT INTO places (kind, osm_id, name, at_walk_m, lat, lon) "
+            "VALUES ('city', ?, ?, ?, 0, 0)",
+            (str(i), f"P{i}", at),
+        )
+    places = game.state()["places"]
+    assert [(p["name"], p["reached_on"]) for p in places] == [
+        ("P0", "2026-01-01"),
+        ("P1", "2026-01-01"),  # exactly 10 km: reached at the end of day 1
+        ("P2", "2026-01-02"),
+        ("P3", "2026-01-10"),
+    ]  # P4 (150 km) is beyond the 100 km walked
+    assert "summary" not in places[0]
+    assert game.place(places[0]["id"])["name"] == "P0"
